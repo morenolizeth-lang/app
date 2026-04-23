@@ -1,39 +1,33 @@
 package com.example.applicacion.repository
 
+import com.example.applicacion.Interfaces.RetrofitClient
 import com.example.applicacion.model.Equipo
 import com.example.applicacion.model.Jugador
 
 class EquipoRepository {
 
-    private val listaEquipos = listOf(
-        Equipo(
-            1L,
-            "Nacional",
-            "Medellín",
-            "2020",
-            jugadores = listOf(
-                Jugador(1L, "James Rodríguez", "Mediocampista", 10, "1991-07-12", "Colombiana")
-            )
-        ),
-        Equipo(
-            2L,
-            "Millonarios",
-            "Bogotá",
-            "2020",
-            jugadores = listOf(
-                Jugador(2L, "David Ospina", "Portero", 1, "1988-08-31", "Colombiana")
-            )
-        ),
-        Equipo(
-            3L,
-            "Santa Fe",
-            "Bogotá",
-            "2020",
-            jugadores = listOf(
-                Jugador(3L, "Juan Cuadrado", "Lateral", 11, "1988-05-26", "Colombiana")
-            )
-        )
-    )
+    private val api = RetrofitClient.api
 
-    fun getEquipos(): List<Equipo> = listaEquipos
+    // ✅ Desde API
+    suspend fun getEquipos(): List<Equipo> {
+        return api.getEquipos()
+    }
+
+    // ✅ Desde API
+    suspend fun getJugadoresPorEquipo(idEquipo: Long): List<Jugador> {
+        return api.getJugadoresPorEquipo(idEquipo)
+    }
+
+    // ✅ Goles calculados desde API de partidos
+    suspend fun getGolesEquipo(): Map<Long, Int> {
+        val partidos = api.getPartidos()
+        val mapa = mutableMapOf<Long, Int>()
+        partidos.forEach { partido ->
+            mapa[partido.idEquipoLocal] =
+                (mapa[partido.idEquipoLocal] ?: 0) + partido.golesLocal
+            mapa[partido.idEquipoVisitante] =
+                (mapa[partido.idEquipoVisitante] ?: 0) + partido.golesVisitante
+        }
+        return mapa
+    }
 }

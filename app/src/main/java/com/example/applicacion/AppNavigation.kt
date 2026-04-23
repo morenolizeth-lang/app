@@ -4,20 +4,24 @@ import androidx.compose.runtime.Composable
 import androidx.navigation.compose.*
 import com.example.applicacion.view.*
 import com.example.applicacion.viewmodel.EquipoViewModel
+import com.example.applicacion.viewmodel.EntrenadorViewModel
+import com.example.applicacion.viewmodel.JugadorViewModel  // ✅ nuevo import
 import androidx.lifecycle.viewmodel.compose.viewModel
 
 @Composable
 fun AppNavigation() {
 
     val navController = rememberNavController()
-    val viewModel: EquipoViewModel = viewModel()
+    val equipoViewModel: EquipoViewModel = viewModel()
+    val entrenadorViewModel: EntrenadorViewModel = viewModel()
+    val jugadorViewModel: JugadorViewModel = viewModel()  // ✅ nuevo viewModel
 
     NavHost(
         navController = navController,
-        startDestination = "inicio"  // ✅ CORRECCIÓN: empieza en inicio
+        startDestination = "inicio"
     ) {
 
-        composable("inicio") {       // ✅ ruta registrada
+        composable("inicio") {
             InicioScreen(navController)
         }
 
@@ -26,21 +30,26 @@ fun AppNavigation() {
         }
 
         composable("equipos") {
-            EquiposScreen(viewModel, navController)
+            EquiposScreen(
+                viewModel = equipoViewModel,
+                jugadorViewModel = jugadorViewModel,  // ✅ nuevo parámetro
+                navController = navController
+            )
         }
 
         composable("jugadores") {
             JugadoresScreen(
-                viewModel = viewModel,
+                viewModel = jugadorViewModel,  // ✅ cambio de equipoViewModel
                 navController = navController
             )
         }
+
         composable("todosJugadores") {
             TodosJugadoresScreen(navController = navController)
         }
 
         composable("entrenadores") {
-            EntrenadoresScreen(viewModel, navController)
+            EntrenadoresScreen(entrenadorViewModel, navController)
         }
 
         composable("partidos") {

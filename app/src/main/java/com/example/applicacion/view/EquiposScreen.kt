@@ -17,12 +17,17 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.applicacion.R
 import com.example.applicacion.viewmodel.EquipoViewModel
+import com.example.applicacion.viewmodel.JugadorViewModel  // ✅ nuevo import
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.navigation.NavController
 
 @Composable
-fun EquiposScreen(viewModel: EquipoViewModel, navController: NavController) {
+fun EquiposScreen(
+    viewModel: EquipoViewModel,
+    jugadorViewModel: JugadorViewModel,  // ✅ nuevo parámetro
+    navController: NavController
+) {
 
     val equipos = viewModel.equipos
     val golesEquipo = viewModel.golesEquipo
@@ -81,7 +86,7 @@ fun EquiposScreen(viewModel: EquipoViewModel, navController: NavController) {
             ) {
                 Column {
 
-                    // ✅ NOMBRE + GOLES en la misma fila
+                    // NOMBRE + GOLES
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -89,7 +94,6 @@ fun EquiposScreen(viewModel: EquipoViewModel, navController: NavController) {
                             .padding(12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Nombre ocupa el espacio disponible
                         Column(modifier = Modifier.weight(1f)) {
                             Text("Nombre", fontSize = 14.sp, color = Color.Gray)
                             Text(
@@ -99,7 +103,6 @@ fun EquiposScreen(viewModel: EquipoViewModel, navController: NavController) {
                             )
                         }
 
-                        // ✅ Casilla de goles al frente del nombre
                         Column(
                             modifier = Modifier
                                 .border(
@@ -112,13 +115,8 @@ fun EquiposScreen(viewModel: EquipoViewModel, navController: NavController) {
                                 .padding(horizontal = 12.dp, vertical = 8.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
+                            Text(text = "Goles", fontSize = 12.sp, color = Color.Gray)
                             Text(
-                                text = "Goles",
-                                fontSize = 12.sp,
-                                color = Color.Gray
-                            )
-                            Text(
-                                // ✅ Busca los goles de este equipo en el mapa
                                 text = (golesEquipo[equipo.id] ?: 0).toString(),
                                 fontSize = 22.sp,
                                 fontWeight = FontWeight.Bold,
@@ -164,7 +162,7 @@ fun EquiposScreen(viewModel: EquipoViewModel, navController: NavController) {
                     ) {
                         Button(
                             onClick = {
-                                viewModel.seleccionarYAbrirJugadores(equipo)
+                                jugadorViewModel.cargarJugadores(equipo)  // ✅ carga jugadores del equipo
                                 navController.navigate("jugadores")
                             },
                             colors = ButtonDefaults.buttonColors(

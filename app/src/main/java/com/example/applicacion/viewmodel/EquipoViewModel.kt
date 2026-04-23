@@ -1,65 +1,53 @@
 package com.example.applicacion.viewmodel
 
-import androidx.compose.runtime.*
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.example.applicacion.model.Equipo
-import com.example.applicacion.model.Jugador
-import com.example.applicacion.model.Entrenador
-import com.example.applicacion.repository.*
+import com.example.applicacion.repository.EquipoRepository
+import kotlinx.coroutines.launch
 
 class EquipoViewModel : ViewModel() {
 
-    private val entrenadorRepository = EntrenadorRepository()
-    private val equipoRepository = EquipoRepository()
-    private val jugadorRepository = JugadorRepository()
-    private val partidoRepository = PartidoRepository()
+    private val repository = EquipoRepository()
 
-    var jugadores by mutableStateOf(listOf<Jugador>())
+    var equipos by mutableStateOf<List<Equipo>>(emptyList())
         private set
 
-    var equipos by mutableStateOf(listOf<Equipo>())
+    var golesEquipo by mutableStateOf<Map<Long, Int>>(emptyMap())
         private set
 
-    var entrenadores by mutableStateOf(listOf<Entrenador>())
+    var equipoSeleccionado by mutableStateOf<Equipo?>(null)
         private set
 
-    var golesEquipo by mutableStateOf(mapOf<Long, Int>())
+    var cargando by mutableStateOf(false)
+        private set
+
+    var error by mutableStateOf<String?>(null)
         private set
 
     init {
         cargarEquipos()
-        cargarEntrenadores()
     }
 
     fun cargarEquipos() {
-
-        equipos = equipoRepository.getEquipos()
-
-        val partidos = partidoRepository.getPartidos()
-
-        golesEquipo = equipos.associate { equipo ->
-
-            val golesLocal = partidos
-                .filter { it.idEquipoLocal == equipo.id }
-                .sumOf { it.GolesLocal }
-
-            val golesVisitante = partidos
-                .filter { it.idEquipoVisitante == equipo.id }
-                .sumOf { it.GolesVisitante }
-
-            equipo.id to (golesLocal + golesVisitante)
+        viewModelScope.launch {
+            cargando = true
+            error = null
+            try {
+                equipos = repository.getEquipos()
+                golesEquipo = repository.getGolesEquipo()
+            } catch (e: Exception) {
+                error = e.message
+            } finally {
+                cargando = false
+            }
         }
     }
 
-    fun cargarEntrenadores() {
-        entrenadores = entrenadorRepository.getEntrenadores()
-    }
-
     fun seleccionarYAbrirJugadores(equipo: Equipo) {
-        cargarJugadoresPorEquipo(equipo.id)
-    }
-
-    fun cargarJugadoresPorEquipo(idEquipo: Long) {
-        jugadores = jugadorRepository.getJugadoresPorEquipo(idEquipo)
+        equipoSeleccionado = equipo
     }
 }

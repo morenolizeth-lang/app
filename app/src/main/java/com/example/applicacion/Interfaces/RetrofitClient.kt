@@ -10,7 +10,7 @@ object RetrofitClient {
     // ✅ Cambia esta URL por la de tu backend
     // Emulador Android -> usa 10.0.2.2 en vez de localhost
     // Dispositivo físico -> usa la IP de tu PC ej: 192.168.1.10
-    private const val BASE_URL = "http://10.0.2.2:8080/"
+    private const val BASE_URL = "http://192.168.20.36:8080/"
 
     val api: ApiService by lazy {
         Retrofit.Builder()

@@ -2,17 +2,22 @@ package com.example.applicacion.viewmodel
 
 import androidx.compose.runtime.*
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.example.applicacion.model.Equipo
 import com.example.applicacion.model.EstadisticaJugador
 import com.example.applicacion.model.Jugador
+import com.example.applicacion.model.Partido
 import com.example.applicacion.repository.*
+import kotlinx.coroutines.launch
 
 class JugadorViewModel : ViewModel() {
 
-    private val partidoRepository = PartidoRepository()
     private val jugadorRepository = JugadorRepository()
     private val equipoRepository = EquipoRepository()
     private val estadisticaRepository = EstadisticaRepository()
+    private val partidoRepository = PartidoRepository()
 
+    private var equipoIdActual: Long? = null
     var jugadores by mutableStateOf(listOf<Jugador>())
         private set
 
@@ -25,11 +30,19 @@ class JugadorViewModel : ViewModel() {
     var busquedaActiva by mutableStateOf(false)
         private set
 
-    private var jugadorNombreEquipoMap: Map<Long, String> = emptyMap()
+    var cargando by mutableStateOf(false)
+        private set
 
-    var estadisticasAbiertas by mutableStateOf(
-        mapOf<Long, List<EstadisticaJugador>>()
-    )
+    var error: String? by mutableStateOf(null)
+        private set
+
+    private var jugadorNombreEquipoMap: Map<Long, String> = emptyMap()
+    private var equiposCargados: List<Equipo> = emptyList()
+
+    // ✅ partidos en memoria para getNombrePartido sin corrutina
+    private var partidosCargados: List<Partido> = emptyList()
+
+    var estadisticasAbiertas by mutableStateOf(mapOf<Long, List<EstadisticaJugador>>())
         private set
 
     init {
@@ -37,39 +50,78 @@ class JugadorViewModel : ViewModel() {
     }
 
     private fun cargarDatos() {
+        viewModelScope.launch {
+            cargando = true
+            error = null
+            try {
+                jugadores = jugadorRepository.getJugadores()
+                equiposCargados = equipoRepository.getEquipos()
+                partidosCargados = partidoRepository.getPartidos()  // ✅ desde API
 
-        jugadores = jugadorRepository.getJugadores()
-
-        val equipos = equipoRepository.getEquipos()
-
-        jugadorNombreEquipoMap = equipos
-            .flatMap { equipo ->
-                equipo.jugadores.map { jugador ->
-                    jugador.id to equipo.nombre
-                }
+                jugadorNombreEquipoMap = equiposCargados
+                    .flatMap { equipo ->
+                        equipo.jugadores.map { jugador -> jugador.id to equipo.nombre }
+                    }
+                    .toMap()
+            } catch (e: Exception) {
+                error = "Error al cargar datos: ${e.message}"
+            } finally {
+                cargando = false
             }
-            .toMap()
+        }
     }
 
-    fun onGolesChange(valor: String) {
-        golesBusqueda = valor
+    fun cargarJugadores(equipo: Equipo) {
+        viewModelScope.launch {
+            cargando = true
+            error = null
+            try {
+                jugadores = jugadorRepository.getJugadoresPorEquipo(equipo.id)
+                jugadoresFiltrados = emptyList()
+                busquedaActiva = false
+                golesBusqueda = ""
+                estadisticasAbiertas = emptyMap()
+            } catch (e: Exception) {
+                error = "Error al cargar jugadores: ${e.message}"
+            } finally {
+                cargando = false
+            }
+        }
+    }
+    fun cargaJugadores(idEquipo: Long) {
+        equipoIdActual = idEquipo
+
+        viewModelScope.launch {
+            cargando = true
+            error = null
+
+            try {
+                jugadores = jugadorRepository.getJugadoresPorEquipo(idEquipo)
+            } catch (e: Exception) {
+                error = "Error al cargar jugadores: ${e.message}"
+            } finally {
+                cargando = false
+            }
+        }
     }
 
-    // 🔥 FIX APLICADO AQUÍ
+    // 🔁 REINTENTAR
+    fun reintentar() {
+        equipoIdActual?.let {
+            cargaJugadores(it)
+        }
+    }
+
+    fun onGolesChange(valor: String) { golesBusqueda = valor }
+
     fun buscarJugadoresPorGoles() {
-
         val golesMinimos = golesBusqueda.toIntOrNull() ?: return
-
         val golesPorJugador = estadisticaRepository.getTodas()
             .groupBy { it.idJugador }
-            .mapValues { (_, stats) ->
-                stats.sumOf { it.goles }
-            }
-
+            .mapValues { (_, stats) -> stats.sumOf { it.goles } }
         jugadoresFiltrados = jugadores.filter { jugador ->
             (golesPorJugador[jugador.id] ?: 0) >= golesMinimos
         }
-
         busquedaActiva = true
     }
 
@@ -83,30 +135,15 @@ class JugadorViewModel : ViewModel() {
         return jugadorNombreEquipoMap[idJugador] ?: "Desconocido"
     }
 
+    // ✅ usa partidosCargados en memoria — nombres ya vienen en el response
     fun getNombrePartido(idPartido: Long): String {
-
-        val partido = partidoRepository.getPartidos()
-            .find { it.id == idPartido }
-
+        val partido = partidosCargados.find { it.id == idPartido }
         return if (partido != null) {
-
-            val local = equipoRepository.getEquipos()
-                .find { it.id == partido.idEquipoLocal }
-                ?.nombre ?: "Local"
-
-            val visitante = equipoRepository.getEquipos()
-                .find { it.id == partido.idEquipoVisitante }
-                ?.nombre ?: "Visitante"
-
-            "$local vs $visitante"
-
-        } else {
-            "Partido desconocido"
-        }
+            "${partido.nombreEquipoLocal} vs ${partido.nombreEquipoVisitante}"
+        } else "Partido desconocido"
     }
 
     fun toggleEstadisticas(idJugador: Long) {
-
         estadisticasAbiertas = if (estadisticasAbiertas.containsKey(idJugador)) {
             estadisticasAbiertas - idJugador
         } else {

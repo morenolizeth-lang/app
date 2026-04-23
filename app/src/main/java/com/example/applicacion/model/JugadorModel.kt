@@ -5,5 +5,5 @@ data class Jugador(
     val posicion: String,
     val dorsal: Int,
     val fechaNacimiento: String,
-    val Nacionalidad: String
+    val nacionalidad: String
 )

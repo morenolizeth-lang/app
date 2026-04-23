@@ -17,16 +17,17 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.*
 import androidx.navigation.NavController
 import com.example.applicacion.R
-import com.example.applicacion.viewmodel.EquipoViewModel
+import com.example.applicacion.viewmodel.EntrenadorViewModel
 
 @Composable
 fun EntrenadoresScreen(
-    viewModel: EquipoViewModel,
+    viewModel: EntrenadorViewModel,
     navController: NavController
 ) {
 
     val entrenadores = viewModel.entrenadores
-    val equipos = viewModel.equipos
+    val cargando = viewModel.cargando
+    val error = viewModel.error
 
     Column(
         modifier = Modifier
@@ -35,7 +36,7 @@ fun EntrenadoresScreen(
             .padding(16.dp)
     ) {
 
-        // 🔥 HEADER (EL TUYO EXACTO)
+        // 🔥 HEADER
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -50,20 +51,16 @@ fun EntrenadoresScreen(
                 .background(Color.White)
                 .padding(vertical = 18.dp, horizontal = 16.dp)
         ) {
-
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth()
             ) {
-
                 Image(
                     painter = painterResource(id = R.drawable.entrenador),
                     contentDescription = "Equipo",
                     modifier = Modifier.size(45.dp)
                 )
-
                 Spacer(modifier = Modifier.width(12.dp))
-
                 Text(
                     text = "Administra los entrenadores",
                     fontSize = 20.sp,
@@ -75,11 +72,45 @@ fun EntrenadoresScreen(
 
         Spacer(modifier = Modifier.height(20.dp))
 
+        // ⏳ CARGANDO
+        if (cargando) {
+            CircularProgressIndicator(
+                modifier = Modifier.align(Alignment.CenterHorizontally),
+                color = Color.Red
+            )
+        }
+
+        // ❌ ERROR
+        error?.let {
+            Text(
+                text = it,
+                color = Color.Red,
+                modifier = Modifier.padding(8.dp)
+            )
+            Button(
+                onClick = { viewModel.cargarEntrenadores() },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color.Red,
+                    contentColor = Color.White
+                )
+            ) {
+                Text("Reintentar")
+            }
+        }
+
+        // 📭 LISTA VACÍA
+        if (entrenadores.isEmpty() && !cargando && error == null) {
+            Text(
+                text = "No hay entrenadores registrados.",
+                color = Color.Gray,
+                modifier = Modifier.padding(8.dp)
+            )
+        }
+
         // 📦 LISTA DE ENTRENADORES
         entrenadores.forEach { entrenador ->
 
-            val equipoNombre =
-                equipos.find { it.id == entrenador.equipoId }?.nombre ?: "Sin equipo"
+            val equipoNombre = entrenador.nombreEquipo
 
             Card(
                 shape = RoundedCornerShape(16.dp),
@@ -95,7 +126,6 @@ fun EntrenadoresScreen(
                     ),
                 colors = CardDefaults.cardColors(containerColor = Color.White)
             ) {
-
                 Column {
 
                     // 🔥 NOMBRE (con degradado)
@@ -119,7 +149,6 @@ fun EntrenadoresScreen(
 
                     // 📋 DATOS
                     Row(modifier = Modifier.fillMaxWidth()) {
-
                         Column(
                             modifier = Modifier
                                 .weight(1f)

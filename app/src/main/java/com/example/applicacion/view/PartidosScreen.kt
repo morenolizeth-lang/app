@@ -25,6 +25,8 @@ fun PartidosScreen(
     viewModel: PartidosViewModel = viewModel()
 ) {
     val partidos = viewModel.partidos
+    val cargando = viewModel.cargando
+    val error = viewModel.error
 
     Column(
         modifier = Modifier
@@ -53,8 +55,36 @@ fun PartidosScreen(
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        partidos.forEach { item ->
+        // ⏳ CARGANDO
+        if (cargando) {
+            CircularProgressIndicator(
+                modifier = Modifier.align(Alignment.CenterHorizontally),
+                color = Color.Red
+            )
+        }
 
+        // ❌ ERROR
+        error?.let {
+            Text(text = it, color = Color.Red, modifier = Modifier.padding(8.dp))
+            Button(
+                onClick = { viewModel.cargarPartidos() },
+                colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
+            ) {
+                Text("Reintentar", color = Color.White)
+            }
+        }
+
+        // 📭 LISTA VACÍA
+        if (partidos.isEmpty() && !cargando && error == null) {
+            Text(
+                text = "No hay partidos registrados.",
+                color = Color.Gray,
+                modifier = Modifier.padding(8.dp)
+            )
+        }
+
+        // 📦 LISTA DE PARTIDOS
+        partidos.forEach { partido ->
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -69,7 +99,7 @@ fun PartidosScreen(
                 Column(modifier = Modifier.padding(16.dp)) {
 
                     Text(
-                        text = "${item.partido.Estadio} - ${item.partido.fechadelPartido}",
+                        text = "${partido.estadio} - ${partido.fechadelPartido}",
                         color = Color.Gray,
                         fontSize = 12.sp
                     )
@@ -81,23 +111,23 @@ fun PartidosScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // ✅ Nombre local directo
+                        // ✅ nombre directo desde el response
                         Text(
-                            text = item.nombreLocal,
+                            text = partido.nombreEquipoLocal,
                             fontWeight = FontWeight.Bold
                         )
 
-                        // ✅ Marcador
+                        // ✅ marcador
                         Text(
-                            text = "${item.partido.GolesLocal} VS ${item.partido.GolesVisitante}",
+                            text = "${partido.golesLocal} VS ${partido.golesVisitante}",
                             color = Color.Red,
                             fontWeight = FontWeight.Bold,
                             fontSize = 18.sp
                         )
 
-                        // ✅ Nombre visitante directo
+                        // ✅ nombre directo desde el response
                         Text(
-                            text = item.nombreVisitante,
+                            text = partido.nombreEquipoVisitante,
                             fontWeight = FontWeight.Bold
                         )
                     }

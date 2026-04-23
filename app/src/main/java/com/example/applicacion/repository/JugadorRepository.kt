@@ -1,20 +1,19 @@
 package com.example.applicacion.repository
 
+import com.example.applicacion.Interfaces.RetrofitClient
 import com.example.applicacion.model.Jugador
 
 class JugadorRepository {
 
-    private val equipoRepository = EquipoRepository()
+    private val api = RetrofitClient.api
 
-    // ✅ Todos los jugadores vienen de los equipos
-    fun getJugadores(): List<Jugador> {
-        return equipoRepository.getEquipos().flatMap { it.jugadores }
+    // ✅ Todos los jugadores desde API
+    suspend fun getJugadores(): List<Jugador> {
+        return api.getTodosJugadores()
     }
 
-    // ✅ Filtra por equipo correctamente
-    fun getJugadoresPorEquipo(idEquipo: Long): List<Jugador> {
-        return equipoRepository.getEquipos()
-            .find { it.id == idEquipo }
-            ?.jugadores ?: emptyList()
+    // ✅ Jugadores por equipo desde API
+    suspend fun getJugadoresPorEquipo(idEquipo: Long): List<Jugador> {
+        return api.getJugadoresPorEquipo(idEquipo)
     }
 }

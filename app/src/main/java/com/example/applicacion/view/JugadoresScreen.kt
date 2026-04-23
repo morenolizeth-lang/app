@@ -19,14 +19,16 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.example.applicacion.R
-import com.example.applicacion.viewmodel.EquipoViewModel
+import com.example.applicacion.viewmodel.JugadorViewModel
 
 @Composable
 fun JugadoresScreen(
-    viewModel: EquipoViewModel,
+    viewModel: JugadorViewModel,
     navController: NavController
 ) {
     val jugadores = viewModel.jugadores
+    val cargando = viewModel.cargando  // ✅
+    val error = viewModel.error        // ✅
 
     Column(
         modifier = Modifier
@@ -70,8 +72,28 @@ fun JugadoresScreen(
 
         Spacer(modifier = Modifier.height(20.dp))
 
+        // ⏳ CARGANDO
+        if (cargando) {
+            CircularProgressIndicator(
+                modifier = Modifier.align(Alignment.CenterHorizontally),
+                color = Color.Red
+            )
+        }
+
+
+// ❌ ERROR
+        error?.let {
+            Text(text = it, color = Color.Red, modifier = Modifier.padding(8.dp))
+            Button(
+                onClick = { viewModel.reintentar() },
+                colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
+            ) {
+                Text("Reintentar", color = Color.White)
+            }
+        }
+
         // 📦 LISTA DE JUGADORES
-        if (jugadores.isEmpty()) {
+        if (jugadores.isEmpty() && !cargando && error == null) {
             Text(
                 text = "Este equipo no tiene jugadores registrados.",
                 color = Color.Gray,
@@ -99,7 +121,7 @@ fun JugadoresScreen(
                         Text("Posición: ${jugador.posicion}", color = Color.Black)
                         Text("Dorsal: ${jugador.dorsal}", color = Color.Black)
                         Text("Nacimiento: ${jugador.fechaNacimiento}", color = Color.Black)
-                        Text("Nacionalidad: ${jugador.Nacionalidad}", color = Color.Black)
+                        Text("Nacionalidad: ${jugador.nacionalidad}", color = Color.Black)
                     }
                 }
             }
