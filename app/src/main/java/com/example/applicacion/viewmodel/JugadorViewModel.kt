@@ -18,6 +18,7 @@ class JugadorViewModel : ViewModel() {
     private val partidoRepository = PartidoRepository()
 
     private var equipoIdActual: Long? = null
+
     var jugadores by mutableStateOf(listOf<Jugador>())
         private set
 
@@ -35,11 +36,11 @@ class JugadorViewModel : ViewModel() {
 
     var error: String? by mutableStateOf(null)
         private set
-
+    // ✅ agregar junto a los otros estados
+    var errorEstadisticas: String? by mutableStateOf(null)
+        private set
     private var jugadorNombreEquipoMap: Map<Long, String> = emptyMap()
     private var equiposCargados: List<Equipo> = emptyList()
-
-    // ✅ partidos en memoria para getNombrePartido sin corrutina
     private var partidosCargados: List<Partido> = emptyList()
 
     var estadisticasAbiertas by mutableStateOf(mapOf<Long, List<EstadisticaJugador>>())
@@ -56,7 +57,7 @@ class JugadorViewModel : ViewModel() {
             try {
                 jugadores = jugadorRepository.getJugadores()
                 equiposCargados = equipoRepository.getEquipos()
-                partidosCargados = partidoRepository.getPartidos()  // ✅ desde API
+                partidosCargados = partidoRepository.getPartidos()
 
                 jugadorNombreEquipoMap = equiposCargados
                     .flatMap { equipo ->
@@ -72,6 +73,7 @@ class JugadorViewModel : ViewModel() {
     }
 
     fun cargarJugadores(equipo: Equipo) {
+        equipoIdActual = equipo.id
         viewModelScope.launch {
             cargando = true
             error = null
@@ -88,15 +90,19 @@ class JugadorViewModel : ViewModel() {
             }
         }
     }
-    fun cargaJugadores(idEquipo: Long) {
-        equipoIdActual = idEquipo
 
+    fun cargarJugadores() {
         viewModelScope.launch {
             cargando = true
             error = null
 
             try {
-                jugadores = jugadorRepository.getJugadoresPorEquipo(idEquipo)
+                jugadores = jugadorRepository.getJugadores()
+                jugadoresFiltrados = emptyList()
+                busquedaActiva = false
+                golesBusqueda = ""
+                estadisticasAbiertas = emptyMap()
+
             } catch (e: Exception) {
                 error = "Error al cargar jugadores: ${e.message}"
             } finally {
@@ -104,25 +110,47 @@ class JugadorViewModel : ViewModel() {
             }
         }
     }
+    fun cargarJugadoresPorEquipo(idEquipo: Long) {
+        viewModelScope.launch {
+            cargando = true
+            error = null
 
-    // 🔁 REINTENTAR
-    fun reintentar() {
-        equipoIdActual?.let {
-            cargaJugadores(it)
+            try {
+                jugadores = jugadorRepository.getJugadoresPorEquipo(idEquipo)
+                jugadoresFiltrados = emptyList()
+                busquedaActiva = false
+                golesBusqueda = ""
+                estadisticasAbiertas = emptyMap()
+
+            } catch (e: Exception) {
+                error = "Error al cargar jugadores: ${e.message}"
+            } finally {
+                cargando = false
+            }
         }
     }
-
     fun onGolesChange(valor: String) { golesBusqueda = valor }
 
+    // ✅ ahora usa corrutina
     fun buscarJugadoresPorGoles() {
         val golesMinimos = golesBusqueda.toIntOrNull() ?: return
-        val golesPorJugador = estadisticaRepository.getTodas()
-            .groupBy { it.idJugador }
-            .mapValues { (_, stats) -> stats.sumOf { it.goles } }
-        jugadoresFiltrados = jugadores.filter { jugador ->
-            (golesPorJugador[jugador.id] ?: 0) >= golesMinimos
+        viewModelScope.launch {
+            try {
+                val todasStats = jugadores.flatMap { jugador ->
+                    estadisticaRepository.getEstadisticasPorJugador(jugador.id)
+                }
+                val golesPorJugador = todasStats
+                    .groupBy { it.idJugador }
+                    .mapValues { (_, stats) -> stats.sumOf { it.goles } }
+
+                jugadoresFiltrados = jugadores.filter { jugador ->
+                    (golesPorJugador[jugador.id] ?: 0) >= golesMinimos
+                }
+                busquedaActiva = true
+            } catch (e: Exception) {
+                error = "Error al buscar: ${e.message}"
+            }
         }
-        busquedaActiva = true
     }
 
     fun limpiarBusqueda() {
@@ -135,7 +163,6 @@ class JugadorViewModel : ViewModel() {
         return jugadorNombreEquipoMap[idJugador] ?: "Desconocido"
     }
 
-    // ✅ usa partidosCargados en memoria — nombres ya vienen en el response
     fun getNombrePartido(idPartido: Long): String {
         val partido = partidosCargados.find { it.id == idPartido }
         return if (partido != null) {
@@ -143,12 +170,21 @@ class JugadorViewModel : ViewModel() {
         } else "Partido desconocido"
     }
 
+    // ✅ ahora usa corrutina
     fun toggleEstadisticas(idJugador: Long) {
-        estadisticasAbiertas = if (estadisticasAbiertas.containsKey(idJugador)) {
-            estadisticasAbiertas - idJugador
+        if (estadisticasAbiertas.containsKey(idJugador)) {
+            estadisticasAbiertas = estadisticasAbiertas - idJugador
         } else {
-            val stats = estadisticaRepository.getEstadisticasPorJugador(idJugador)
-            estadisticasAbiertas + (idJugador to stats)
+            viewModelScope.launch {
+                try {
+                    errorEstadisticas = null  // ✅ limpiar error anterior
+                    val stats = estadisticaRepository.getEstadisticasPorJugador(idJugador)
+                    estadisticasAbiertas = estadisticasAbiertas + (idJugador to stats)
+                } catch (e: Exception) {
+                    errorEstadisticas = "Error al cargar estadísticas: ${e.message}"  // ✅
+                }
+            }
         }
     }
+
 }

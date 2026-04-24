@@ -82,4 +82,8 @@ interface ApiService {
     suspend fun getEstadisticaPorId(
         @Path("id") id: Long
     ): EstadisticaJugador
+    @GET("api/Estadisticas/jugador/{id}")
+    suspend fun getEstadisticasPorJugador(
+        @Path("id") idJugador: Long
+    ): List<EstadisticaJugador>
 }

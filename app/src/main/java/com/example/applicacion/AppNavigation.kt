@@ -1,20 +1,21 @@
 package com.example.applicacion
 
 import androidx.compose.runtime.Composable
+import androidx.navigation.NavType
 import androidx.navigation.compose.*
+import androidx.navigation.navArgument
 import com.example.applicacion.view.*
-import com.example.applicacion.viewmodel.EquipoViewModel
-import com.example.applicacion.viewmodel.EntrenadorViewModel
-import com.example.applicacion.viewmodel.JugadorViewModel  // ✅ nuevo import
+import com.example.applicacion.viewmodel.*
 import androidx.lifecycle.viewmodel.compose.viewModel
 
 @Composable
 fun AppNavigation() {
 
     val navController = rememberNavController()
+
     val equipoViewModel: EquipoViewModel = viewModel()
     val entrenadorViewModel: EntrenadorViewModel = viewModel()
-    val jugadorViewModel: JugadorViewModel = viewModel()  // ✅ nuevo viewModel
+    val jugadorViewModel: JugadorViewModel = viewModel()
 
     NavHost(
         navController = navController,
@@ -32,15 +33,25 @@ fun AppNavigation() {
         composable("equipos") {
             EquiposScreen(
                 viewModel = equipoViewModel,
-                jugadorViewModel = jugadorViewModel,  // ✅ nuevo parámetro
+                jugadorViewModel = jugadorViewModel,
                 navController = navController
             )
         }
 
-        composable("jugadores") {
+        // ✅ AQUÍ ESTÁ LA CORRECCIÓN IMPORTANTE
+        composable(
+            route = "jugadores/{idEquipo}",
+            arguments = listOf(navArgument("idEquipo") {
+                type = NavType.LongType
+            })
+        ) { backStackEntry ->
+
+            val idEquipo = backStackEntry.arguments?.getLong("idEquipo") ?: 0L
+
             JugadoresScreen(
-                viewModel = jugadorViewModel,  // ✅ cambio de equipoViewModel
-                navController = navController
+                viewModel = jugadorViewModel,
+                navController = navController,
+                idEquipo = idEquipo
             )
         }
 

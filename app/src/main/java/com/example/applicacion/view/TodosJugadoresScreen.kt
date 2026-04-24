@@ -26,7 +26,6 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.applicacion.R
-import com.example.applicacion.model.Jugador
 import com.example.applicacion.viewmodel.JugadorViewModel
 
 @Composable
@@ -39,9 +38,10 @@ fun TodosJugadoresScreen(
     val busquedaActiva = viewModel.busquedaActiva
     val estadisticasAbiertas = viewModel.estadisticasAbiertas
     val golesBusqueda = viewModel.golesBusqueda
+    val cargando = viewModel.cargando
+    val error = viewModel.error
     val keyboardController = LocalSoftwareKeyboardController.current
 
-    // Lista a mostrar: si hay búsqueda activa muestra filtrados, si no todos
     val listaAMostrar = if (busquedaActiva) jugadoresFiltrados else jugadores
 
     Column(
@@ -83,6 +83,28 @@ fun TodosJugadoresScreen(
         }
 
         Spacer(modifier = Modifier.height(20.dp))
+
+        // ⏳ CARGANDO
+        if (cargando) {
+            CircularProgressIndicator(
+                modifier = Modifier.align(Alignment.CenterHorizontally),
+                color = Color.Red
+            )
+        }
+
+        // ❌ ERROR
+        error?.let {
+            Text(text = it, color = Color.Red, modifier = Modifier.padding(8.dp))
+            Button(                                    // ✅ agregar esto
+                onClick = { viewModel.cargarJugadores() }, // ✅ recargar datos
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color.Red,
+                    contentColor = Color.White
+                )
+            ) {
+                Text("Reintentar")
+            }
+        }
 
         // 🔍 BARRA DE BÚSQUEDA POR GOLES
         Text(
@@ -126,7 +148,6 @@ fun TodosJugadoresScreen(
 
             Spacer(modifier = Modifier.width(8.dp))
 
-            // Botón buscar
             Button(
                 onClick = {
                     viewModel.buscarJugadoresPorGoles()
@@ -141,7 +162,6 @@ fun TodosJugadoresScreen(
             }
         }
 
-        // Botón limpiar búsqueda (solo visible si hay búsqueda activa)
         AnimatedVisibility(visible = busquedaActiva) {
             Row(modifier = Modifier.fillMaxWidth()) {
                 TextButton(
@@ -174,7 +194,7 @@ fun TodosJugadoresScreen(
         Spacer(modifier = Modifier.height(16.dp))
 
         // 📦 LISTA DE JUGADORES
-        if (listaAMostrar.isEmpty() && !busquedaActiva) {
+        if (listaAMostrar.isEmpty() && !busquedaActiva && !cargando) {
             Text(
                 text = "No hay jugadores registrados.",
                 color = Color.Gray,
@@ -192,7 +212,6 @@ fun TodosJugadoresScreen(
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        // 🔙 BOTÓN REGRESAR
         Button(
             onClick = { navController.popBackStack() },
             colors = ButtonDefaults.buttonColors(
@@ -215,6 +234,7 @@ fun JugadorCardConEstadisticas(
 ) {
     val estadisticasVisibles = estadisticasAbiertas.containsKey(jugador.id)
     val estadisticas = estadisticasAbiertas[jugador.id] ?: emptyList()
+    val errorEstadisticas = viewModel.errorEstadisticas  // ✅
 
     Card(
         shape = RoundedCornerShape(16.dp),
@@ -230,7 +250,6 @@ fun JugadorCardConEstadisticas(
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
 
-            // Nombre
             Text(
                 text = jugador.nombre,
                 fontSize = 20.sp,
@@ -240,7 +259,6 @@ fun JugadorCardConEstadisticas(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Dorsal y Equipo
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
@@ -282,7 +300,6 @@ fun JugadorCardConEstadisticas(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // Botón estadísticas
             Button(
                 onClick = { viewModel.toggleEstadisticas(jugador.id) },
                 modifier = Modifier.fillMaxWidth(),
@@ -293,6 +310,16 @@ fun JugadorCardConEstadisticas(
                 border = androidx.compose.foundation.BorderStroke(1.dp, Color.Black)
             ) {
                 Text(if (estadisticasVisibles) "Ocultar estadísticas" else "Ver estadísticas")
+            }
+
+            // ❌ ERROR DE ESTADÍSTICAS ✅
+            errorEstadisticas?.let {
+                Text(
+                    text = it,
+                    color = Color.Red,
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(4.dp)
+                )
             }
 
             // 📊 ESTADÍSTICAS DESPLEGABLES
@@ -321,7 +348,6 @@ fun JugadorCardConEstadisticas(
                                     )
                                     .padding(10.dp)
                             ) {
-                                // Nombre del partido desde el ViewModel
                                 Text(
                                     text = viewModel.getNombrePartido(stat.idPartido),
                                     fontWeight = FontWeight.Bold,

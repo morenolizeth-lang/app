@@ -25,12 +25,14 @@ import androidx.navigation.NavController
 @Composable
 fun EquiposScreen(
     viewModel: EquipoViewModel,
-    jugadorViewModel: JugadorViewModel,  // ✅ nuevo parámetro
+    jugadorViewModel: JugadorViewModel,
     navController: NavController
 ) {
 
     val equipos = viewModel.equipos
     val golesEquipo = viewModel.golesEquipo
+    val cargando = viewModel.cargando   // ✅
+    val error = viewModel.error         // ✅
 
     Column(
         modifier = Modifier
@@ -39,7 +41,7 @@ fun EquiposScreen(
             .padding(16.dp)
     ) {
 
-        // 🔥 HEADER
+        // 🔥 HEADER (igual)
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -69,6 +71,43 @@ fun EquiposScreen(
 
         Spacer(modifier = Modifier.height(20.dp))
 
+        // ⏳ CARGANDO
+        if (cargando) {
+            CircularProgressIndicator(
+                modifier = Modifier.align(Alignment.CenterHorizontally),
+                color = Color.Red
+            )
+        }
+
+        // ❌ ERROR + REINTENTAR
+        error?.let {
+            Text(
+                text = it,
+                color = Color.Red,
+                modifier = Modifier.padding(8.dp)
+            )
+
+            Button(
+                onClick = { viewModel.cargarEquipos() }, // ✅ REINTENTO
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color.Red,
+                    contentColor = Color.White
+                )
+            ) {
+                Text("Reintentar")
+            }
+        }
+
+        // 📭 LISTA VACÍA
+        if (equipos.isEmpty() && !cargando && error == null) {
+            Text(
+                text = "No hay equipos registrados.",
+                color = Color.Gray,
+                modifier = Modifier.padding(8.dp)
+            )
+        }
+
+        // 📦 LISTA DE EQUIPOS (tu código igual)
         equipos.forEach { equipo ->
             Card(
                 shape = RoundedCornerShape(16.dp),
@@ -86,7 +125,6 @@ fun EquiposScreen(
             ) {
                 Column {
 
-                    // NOMBRE + GOLES
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -125,7 +163,6 @@ fun EquiposScreen(
                         }
                     }
 
-                    // Fecha y Ciudad
                     Row(modifier = Modifier.fillMaxWidth()) {
                         Column(
                             modifier = Modifier
@@ -150,7 +187,6 @@ fun EquiposScreen(
                         }
                     }
 
-                    // Botón jugadores
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -162,8 +198,8 @@ fun EquiposScreen(
                     ) {
                         Button(
                             onClick = {
-                                jugadorViewModel.cargarJugadores(equipo)  // ✅ carga jugadores del equipo
-                                navController.navigate("jugadores")
+                                jugadorViewModel.cargarJugadores(equipo)
+                                navController.navigate("jugadores/${equipo.id}")
                             },
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = Color.Transparent,

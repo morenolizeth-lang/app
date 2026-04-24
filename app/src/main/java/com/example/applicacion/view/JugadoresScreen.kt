@@ -24,7 +24,8 @@ import com.example.applicacion.viewmodel.JugadorViewModel
 @Composable
 fun JugadoresScreen(
     viewModel: JugadorViewModel,
-    navController: NavController
+    navController: NavController,
+    idEquipo: Long
 ) {
     val jugadores = viewModel.jugadores
     val cargando = viewModel.cargando  // ✅
@@ -85,7 +86,7 @@ fun JugadoresScreen(
         error?.let {
             Text(text = it, color = Color.Red, modifier = Modifier.padding(8.dp))
             Button(
-                onClick = { viewModel.reintentar() },
+                onClick = { viewModel.cargarJugadoresPorEquipo(idEquipo) },
                 colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
             ) {
                 Text("Reintentar", color = Color.White)
