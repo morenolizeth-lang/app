@@ -1,7 +1,7 @@
 package com.example.applicacion.model
 
 data class Equipo(
-    val id: Long,
+    val id: Long = 0,
     val nombre: String,
     val ciudad: String,
     val fecha: String,

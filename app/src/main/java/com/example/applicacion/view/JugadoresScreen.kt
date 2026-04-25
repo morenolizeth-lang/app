@@ -3,12 +3,13 @@ package com.example.applicacion.view
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
@@ -19,7 +20,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.example.applicacion.R
+import com.example.applicacion.model.Jugador
 import com.example.applicacion.viewmodel.JugadorViewModel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @Composable
 fun JugadoresScreen(
@@ -28,8 +32,37 @@ fun JugadoresScreen(
     idEquipo: Long
 ) {
     val jugadores = viewModel.jugadores
-    val cargando = viewModel.cargando  // ✅
-    val error = viewModel.error        // ✅
+    val cargando = viewModel.cargando
+    val error = viewModel.error
+
+    // 🔥 PARA EL DIÁLOGO
+    var jugadorSeleccionado by remember { mutableStateOf<Jugador?>(null) }
+    var mostrarDialogo by remember { mutableStateOf(false) }
+
+    // 🔥 ESTADO LOCAL PARA CONTROLAR LA CARGA PERSISTENTE EN ERROR 500
+    var reintentando by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    // 🔥 AUTO-RETRY PARA ERROR 500 CON CARGA PERSISTENTE
+    LaunchedEffect(error) {
+        if (error != null && error.contains("500") && !reintentando) {
+            reintentando = true
+            while (true) {
+                delay(3000)
+                scope.launch {
+                    viewModel.cargarJugadoresPorEquipo(idEquipo)
+                }
+                delay(2000)
+                if (viewModel.error == null || !viewModel.error!!.contains("500")) {
+                    reintentando = false
+                    break
+                }
+            }
+        }
+    }
+
+    // 🔥 MOSTRAR CARGA MIENTRAS: cargando=true O (error es 500 Y reintentando=true)
+    val mostrarCarga = cargando || (error?.contains("500") == true && reintentando)
 
     Column(
         modifier = Modifier
@@ -73,28 +106,58 @@ fun JugadoresScreen(
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        // ⏳ CARGANDO
-        if (cargando) {
-            CircularProgressIndicator(
-                modifier = Modifier.align(Alignment.CenterHorizontally),
-                color = Color.Red
-            )
+        // ⏳ CARGANDO CON AUTO-RETRY (PERSISTENTE)
+        if (mostrarCarga) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(32.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(48.dp),
+                        color = Color.Red
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    if (error?.contains("500") == true && reintentando) {
+                        Text(
+                            text = "Error de conexión (500). Reintentando automáticamente...",
+                            color = Color.Red,
+                            fontSize = 14.sp
+                        )
+                    } else if (cargando && error == null) {
+                        Text(
+                            text = "Cargando jugadores...",
+                            color = Color.Gray,
+                            fontSize = 14.sp
+                        )
+                    }
+                }
+            }
+            return@Column
         }
 
-
-// ❌ ERROR
+        // ❌ ERROR (SOLO PARA NO-500)
         error?.let {
-            Text(text = it, color = Color.Red, modifier = Modifier.padding(8.dp))
-            Button(
-                onClick = { viewModel.cargarJugadoresPorEquipo(idEquipo) },
-                colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
-            ) {
-                Text("Reintentar", color = Color.White)
+            if (!it.contains("500")) {
+                Text(text = it, color = Color.Red, modifier = Modifier.padding(8.dp))
+                Button(
+                    onClick = { viewModel.cargarJugadoresPorEquipo(idEquipo) },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
+                ) {
+                    Text("Reintentar", color = Color.White)
+                }
+                return@Column
             }
         }
 
-        // 📦 LISTA DE JUGADORES
-        if (jugadores.isEmpty() && !cargando && error == null) {
+        // 📦 LISTA DE JUGADORES (con clickable para diálogo)
+        if (jugadores.isEmpty() && !mostrarCarga && error == null) {
             Text(
                 text = "Este equipo no tiene jugadores registrados.",
                 color = Color.Gray,
@@ -107,6 +170,10 @@ fun JugadoresScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(vertical = 8.dp)
+                        .clickable {
+                            jugadorSeleccionado = jugador
+                            mostrarDialogo = true
+                        }
                         .border(
                             width = 1.dp,
                             brush = Brush.linearGradient(
@@ -141,5 +208,189 @@ fun JugadoresScreen(
         ) {
             Text("Regresar")
         }
+    }
+
+    // 🔥 DIALOGO PARA ACTUALIZAR/ELIMINAR JUGADOR
+    if (mostrarDialogo && jugadorSeleccionado != null) {
+        var nombre by remember { mutableStateOf(jugadorSeleccionado!!.nombre) }
+        var posicion by remember { mutableStateOf(jugadorSeleccionado!!.posicion) }
+        var dorsal by remember { mutableStateOf(jugadorSeleccionado!!.dorsal.toString()) }
+        var fechaNacimiento by remember { mutableStateOf(jugadorSeleccionado!!.fechaNacimiento) }
+        var nacionalidad by remember { mutableStateOf(jugadorSeleccionado!!.nacionalidad) }
+
+        AlertDialog(
+            onDismissRequest = {
+                mostrarDialogo = false
+                jugadorSeleccionado = null
+            },
+            containerColor = Color.White,
+            title = {
+                Text("Actualizar Jugador", fontWeight = FontWeight.Bold, color = Color.Black)
+            },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 450.dp)
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    // NOMBRE - Label gris, texto negro
+                    OutlinedTextField(
+                        value = nombre,
+                        onValueChange = { nombre = it },
+                        label = { Text("Nombre", color = Color.Gray) },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color.Black,
+                            unfocusedTextColor = Color.Black,
+                            focusedLabelColor = Color.Gray,
+                            unfocusedLabelColor = Color.Gray,
+                            focusedBorderColor = Color.Red,
+                            unfocusedBorderColor = Color.Gray
+                        )
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // POSICIÓN - Label gris, texto negro
+                    OutlinedTextField(
+                        value = posicion,
+                        onValueChange = { posicion = it },
+                        label = { Text("Posición", color = Color.Gray) },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color.Black,
+                            unfocusedTextColor = Color.Black,
+                            focusedLabelColor = Color.Gray,
+                            unfocusedLabelColor = Color.Gray,
+                            focusedBorderColor = Color.Red,
+                            unfocusedBorderColor = Color.Gray
+                        )
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // DORSAL - Label gris, texto negro
+                    OutlinedTextField(
+                        value = dorsal,
+                        onValueChange = { dorsal = it },
+                        label = { Text("Dorsal", color = Color.Gray) },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color.Black,
+                            unfocusedTextColor = Color.Black,
+                            focusedLabelColor = Color.Gray,
+                            unfocusedLabelColor = Color.Gray,
+                            focusedBorderColor = Color.Red,
+                            unfocusedBorderColor = Color.Gray
+                        )
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // FECHA NACIMIENTO - Label gris, texto negro
+                    OutlinedTextField(
+                        value = fechaNacimiento,
+                        onValueChange = { fechaNacimiento = it },
+                        label = { Text("Fecha Nacimiento (yyyy-MM-dd)", color = Color.Gray) },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color.Black,
+                            unfocusedTextColor = Color.Black,
+                            focusedLabelColor = Color.Gray,
+                            unfocusedLabelColor = Color.Gray,
+                            focusedBorderColor = Color.Red,
+                            unfocusedBorderColor = Color.Gray
+                        )
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // NACIONALIDAD - Label gris, texto negro
+                    OutlinedTextField(
+                        value = nacionalidad,
+                        onValueChange = { nacionalidad = it },
+                        label = { Text("Nacionalidad", color = Color.Gray) },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color.Black,
+                            unfocusedTextColor = Color.Black,
+                            focusedLabelColor = Color.Gray,
+                            unfocusedLabelColor = Color.Gray,
+                            focusedBorderColor = Color.Red,
+                            unfocusedBorderColor = Color.Gray
+                        )
+                    )
+                }
+            },
+            confirmButton = {
+                Column(
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(0.dp)
+                    ) {
+                        // Botón ELIMINAR (negro)
+                        Button(
+                            onClick = {
+                                viewModel.eliminarJugador(jugadorSeleccionado!!.id)
+                                mostrarDialogo = false
+                                jugadorSeleccionado = null
+                            },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(45.dp),
+                            shape = RoundedCornerShape(0.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color.Black)
+                        ) {
+                            Text("Eliminar", color = Color.White)
+                        }
+
+                        // Botón GUARDAR (rojo)
+                        Button(
+                            onClick = {
+                                viewModel.actualizarJugador(
+                                    jugadorSeleccionado!!.id,
+                                    nombre,
+                                    posicion,
+                                    dorsal.toIntOrNull() ?: 0,
+                                    fechaNacimiento,
+                                    nacionalidad,
+                                    idEquipo
+                                )
+                                mostrarDialogo = false
+                                jugadorSeleccionado = null
+                            },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(45.dp),
+                            shape = RoundedCornerShape(0.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
+                        ) {
+                            Text("Guardar", color = Color.White)
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Botón CANCELAR centrado
+                    Box(
+                        modifier = Modifier.fillMaxWidth(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        TextButton(
+                            onClick = {
+                                mostrarDialogo = false
+                                jugadorSeleccionado = null
+                            }
+                        ) {
+                            Text("Cancelar", color = Color.Gray)
+                        }
+                    }
+                }
+            },
+            dismissButton = {}
+        )
     }
 }

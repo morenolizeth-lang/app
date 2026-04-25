@@ -1,3 +1,4 @@
+// JugadorViewModel.kt
 package com.example.applicacion.viewmodel
 
 import androidx.compose.runtime.*
@@ -40,16 +41,19 @@ class JugadorViewModel : ViewModel() {
     var errorEstadisticas: String? by mutableStateOf(null)
         private set
 
-    // ⚠️ Se mantiene pero ya no es necesario realmente
-    private var jugadorNombreEquipoMap: Map<Long, String> = emptyMap()
+    var mensaje: String? by mutableStateOf(null)  // ✅ NUEVO
+        private set
 
-    // ⚠️ Se mantiene pero ya no dependes de esto para mostrar equipo
     private var equiposCargados: List<Equipo> = emptyList()
     private var partidosCargados: List<Partido> = emptyList()
 
     var estadisticasAbiertas by mutableStateOf(mapOf<Long, List<EstadisticaJugador>>())
         private set
 
+    var buscando by mutableStateOf(false)
+        private set
+    var jugadorCreadoId: Long? by mutableStateOf(null)  // ✅ AGREGA ESTO
+        private set
     init {
         cargarDatos()
     }
@@ -57,20 +61,27 @@ class JugadorViewModel : ViewModel() {
     private fun cargarDatos() {
         viewModelScope.launch {
             cargando = true
+            error = null
             try {
-                val jugadoresResponse = jugadorRepository.getJugadores()
-                val equiposResponse = equipoRepository.getEquipos()
-                val partidosResponse = partidoRepository.getPartidos()
-
-                jugadores = jugadoresResponse
-                equiposCargados = equiposResponse
-                partidosCargados = partidosResponse
-
+                jugadores = jugadorRepository.getJugadores()
             } catch (e: Exception) {
-                error = "Error al cargar datos: ${e.message}"
-            } finally {
-                cargando = false
+                error = "Error al cargar jugadores: ${e.message}"
             }
+
+            try {
+                equiposCargados = equipoRepository.getEquipos()
+            } catch (e: Exception) {
+                // no muestra error, los equipos se cargan en EquipoViewModel
+            }
+
+            try {
+                partidosCargados = partidoRepository.getPartidos()
+            } catch (e: Exception) {
+                // no muestra error si no hay partidos aún
+                partidosCargados = emptyList()
+            }
+
+            cargando = false
         }
     }
 
@@ -97,14 +108,12 @@ class JugadorViewModel : ViewModel() {
         viewModelScope.launch {
             cargando = true
             error = null
-
             try {
                 jugadores = jugadorRepository.getJugadores()
                 jugadoresFiltrados = emptyList()
                 busquedaActiva = false
                 golesBusqueda = ""
                 estadisticasAbiertas = emptyMap()
-
             } catch (e: Exception) {
                 error = "Error al cargar jugadores: ${e.message}"
             } finally {
@@ -117,14 +126,12 @@ class JugadorViewModel : ViewModel() {
         viewModelScope.launch {
             cargando = true
             error = null
-
             try {
                 jugadores = jugadorRepository.getJugadoresPorEquipo(idEquipo)
                 jugadoresFiltrados = emptyList()
                 busquedaActiva = false
                 golesBusqueda = ""
                 estadisticasAbiertas = emptyMap()
-
             } catch (e: Exception) {
                 error = "Error al cargar jugadores: ${e.message}"
             } finally {
@@ -133,44 +140,58 @@ class JugadorViewModel : ViewModel() {
         }
     }
 
-    fun onGolesChange(valor: String) { golesBusqueda = valor }
+    // ✅ NUEVO
+    fun crearJugador(
+        nombre: String,
+        posicion: String,
+        dorsal: Int,
+        fechaNacimiento: String,
+        nacionalidad: String,
+        idEquipo: Long
+    ) {
+        viewModelScope.launch {
+            cargando = true
+            error = null
+            mensaje = null
+            jugadorCreadoId = null  // ✅ resetea antes de crear
+            try {
+                val jugador = jugadorRepository.crearJugador(
+                    nombre, posicion, dorsal, fechaNacimiento, nacionalidad, idEquipo
+                )
+                jugadorCreadoId = jugador.id  // ✅ guarda el id del jugador creado
+                mensaje = "Jugador creado ✔ Ahora agrega estadísticas"
+                cargarJugadores()
+            } catch (e: Exception) {
+                error = "Error al crear jugador: ${e.message}"
+            } finally {
+                cargando = false
+            }
+        }
+    }
 
-    var buscando by mutableStateOf(false)
-        private set
+    fun onGolesChange(valor: String) { golesBusqueda = valor }
 
     fun buscarJugadoresPorGoles() {
         val golesMinimos = golesBusqueda.toIntOrNull() ?: return
-
         if (buscando) return
-
         buscando = true
         error = null
-
         viewModelScope.launch {
             try {
                 val todasStats = mutableListOf<EstadisticaJugador>()
-
                 for (jugador in jugadores) {
                     try {
                         val stats = estadisticaRepository.getEstadisticasPorJugador(jugador.id)
                         todasStats.addAll(stats)
                     } catch (_: Exception) { }
                 }
-
                 val golesPorJugador = todasStats
                     .groupBy { it.idJugador }
                     .mapValues { (_, stats) -> stats.sumOf { it.goles } }
-
                 jugadoresFiltrados = jugadores.filter { jugador ->
                     (golesPorJugador[jugador.id] ?: 0) >= golesMinimos
                 }
-
                 busquedaActiva = true
-
-                if (jugadoresFiltrados.isEmpty()) {
-                    error = null
-                }
-
             } catch (e: Exception) {
                 jugadoresFiltrados = emptyList()
                 busquedaActiva = true
@@ -186,7 +207,6 @@ class JugadorViewModel : ViewModel() {
         busquedaActiva = false
     }
 
-    // 🔥 MEJORA REAL AQUÍ
     fun getNombreEquipo(jugador: Jugador): String {
         return jugador.nombreEquipo ?: "Sin equipo"
     }
@@ -210,6 +230,54 @@ class JugadorViewModel : ViewModel() {
                 } catch (e: Exception) {
                     errorEstadisticas = "Error al cargar estadísticas: ${e.message}"
                 }
+            }
+        }
+    }
+    fun actualizarJugador(
+        id: Long,
+        nombre: String,
+        posicion: String,
+        dorsal: Int,
+        fechaNacimiento: String,
+        nacionalidad: String,
+        idEquipo: Long
+    ) {
+        viewModelScope.launch {
+            cargando = true
+            error = null
+            mensaje = null
+            try {
+                jugadorRepository.actualizarJugador(
+                    id,
+                    nombre,
+                    posicion,
+                    dorsal,
+                    fechaNacimiento,
+                    nacionalidad,
+                    idEquipo
+                )
+                mensaje = "Jugador actualizado ✔"
+                cargarJugadores()
+            } catch (e: Exception) {
+                error = "Error al actualizar jugador: ${e.message}"
+            } finally {
+                cargando = false
+            }
+        }
+    }
+    fun eliminarJugador(id: Long) {
+        viewModelScope.launch {
+            cargando = true
+            error = null
+            mensaje = null
+            try {
+                jugadorRepository.eliminarJugador(id)
+                mensaje = "Jugador eliminado ✔"
+                cargarJugadores()
+            } catch (e: Exception) {
+                error = "Error al eliminar jugador: ${e.message}"
+            } finally {
+                cargando = false
             }
         }
     }

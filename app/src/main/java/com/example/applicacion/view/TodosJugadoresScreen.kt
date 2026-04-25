@@ -1,17 +1,11 @@
 package com.example.applicacion.view
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
+import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
@@ -26,7 +20,10 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.applicacion.R
+import com.example.applicacion.model.Jugador
 import com.example.applicacion.viewmodel.JugadorViewModel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @Composable
 fun TodosJugadoresScreen(
@@ -41,8 +38,20 @@ fun TodosJugadoresScreen(
     val cargando = viewModel.cargando
     val error = viewModel.error
     val keyboardController = LocalSoftwareKeyboardController.current
+    val scope = rememberCoroutineScope()
 
     val listaAMostrar = if (busquedaActiva) jugadoresFiltrados else jugadores
+
+    var jugadorSeleccionado by remember { mutableStateOf<Jugador?>(null) }
+    var mostrarDialogo by remember { mutableStateOf(false) }
+
+    // 🔥 AUTO-RETRY PARA ERROR 500
+    LaunchedEffect(error) {
+        if (error != null && error.contains("500")) {
+            delay(3000)
+            viewModel.cargarJugadores()
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -51,7 +60,7 @@ fun TodosJugadoresScreen(
             .padding(16.dp)
     ) {
 
-        // 🔥 HEADER
+        // HEADER
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -63,10 +72,7 @@ fun TodosJugadoresScreen(
                 .background(Color.White)
                 .padding(vertical = 18.dp, horizontal = 16.dp)
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
-            ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Image(
                     painter = painterResource(id = R.drawable.jugador),
                     contentDescription = "jugador",
@@ -84,29 +90,57 @@ fun TodosJugadoresScreen(
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        // ⏳ CARGANDO
+        // 🔥 ESTADO DE CARGA CON AUTO-RETRY
         if (cargando) {
-            CircularProgressIndicator(
-                modifier = Modifier.align(Alignment.CenterHorizontally),
-                color = Color.Red
-            )
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(32.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(48.dp),
+                        color = Color.Red
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    if (error?.contains("500") == true) {
+                        Text(
+                            text = "Error de conexión (500). Reintentando automáticamente...",
+                            color = Color.Red,
+                            fontSize = 14.sp
+                        )
+                    } else {
+                        Text(
+                            text = "Cargando jugadores...",
+                            color = Color.Gray,
+                            fontSize = 14.sp
+                        )
+                    }
+                }
+            }
+            return@Column
         }
 
-        // ❌ ERROR
+        // 🔥 OTROS ERRORES (no 500)
         error?.let {
-            Text(text = it, color = Color.Red, modifier = Modifier.padding(8.dp))
-            Button(                                    // ✅ agregar esto
-                onClick = { viewModel.cargarJugadores() }, // ✅ recargar datos
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color.Red,
-                    contentColor = Color.White
-                )
-            ) {
-                Text("Reintentar")
+            if (!it.contains("500")) {
+                Text(text = it, color = Color.Red, modifier = Modifier.padding(8.dp))
+                Button(
+                    onClick = { viewModel.cargarJugadores() },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.Red, contentColor = Color.White)
+                ) {
+                    Text("Reintentar")
+                }
+                return@Column
             }
         }
 
-        // 🔍 BARRA DE BÚSQUEDA POR GOLES
+        // BUSCADOR
         Text(
             text = "Buscar por goles anotados",
             fontWeight = FontWeight.Bold,
@@ -124,25 +158,17 @@ fun TodosJugadoresScreen(
                 value = golesBusqueda,
                 onValueChange = { viewModel.onGolesChange(it) },
                 label = { Text("Más de X goles") },
-                placeholder = { Text("ej: 0") },
                 modifier = Modifier.weight(1f),
                 singleLine = true,
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Number,
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                    keyboardType = KeyboardType.Number,  // ← Esto es KeyboardType, no KeywordType
                     imeAction = ImeAction.Search
                 ),
-                keyboardActions = KeyboardActions(
+                keyboardActions = androidx.compose.foundation.text.KeyboardActions(
                     onSearch = {
                         viewModel.buscarJugadoresPorGoles()
                         keyboardController?.hide()
                     }
-                ),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedTextColor = Color.Black,
-                    unfocusedTextColor = Color.Black,
-                    cursorColor = Color.Black,
-                    focusedBorderColor = Color.Red,
-                    unfocusedBorderColor = Color.Black
                 )
             )
 
@@ -192,16 +218,15 @@ fun TodosJugadoresScreen(
         }
 
         Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
-        // 📦 LISTA DE JUGADORES
-        if (listaAMostrar.isEmpty() && !busquedaActiva && !cargando) {
-            Text(
-                text = "No hay jugadores registrados.",
-                color = Color.Gray,
-                modifier = Modifier.padding(vertical = 12.dp)
-            )
-        } else {
-            listaAMostrar.forEach { jugador ->
+        listaAMostrar.forEach { jugador ->
+            Box(
+                modifier = Modifier.clickable {
+                    jugadorSeleccionado = jugador
+                    mostrarDialogo = true
+                }
+            ) {
                 JugadorCardConEstadisticas(
                     jugador = jugador,
                     viewModel = viewModel,
@@ -223,18 +248,133 @@ fun TodosJugadoresScreen(
             Text("Regresar")
         }
     }
+
+    // DIALOGO
+    if (mostrarDialogo && jugadorSeleccionado != null) {
+        var nombre by remember { mutableStateOf(jugadorSeleccionado!!.nombre) }
+        var posicion by remember { mutableStateOf(jugadorSeleccionado!!.posicion) }
+        var dorsal by remember { mutableStateOf(jugadorSeleccionado!!.dorsal.toString()) }
+
+        AlertDialog(
+            onDismissRequest = {
+                mostrarDialogo = false
+                jugadorSeleccionado = null
+            },
+            containerColor = Color.White,
+            title = {
+                Text("Jugador", fontWeight = FontWeight.Bold, color = Color.Black)
+            },
+            text = {
+                Column {
+                    OutlinedTextField(
+                        value = nombre,
+                        onValueChange = { nombre = it },
+                        label = { Text("Nombre") },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color.Black,      // Negro cuando escribes
+                            unfocusedTextColor = Color.Black,    // Negro cuando no escribes
+                            focusedLabelColor = Color.Gray,      // Label gris cuando enfocado
+                            unfocusedLabelColor = Color.Gray,    // Label gris cuando no enfocado
+                            focusedBorderColor = Color.Red,      // Borde rojo cuando enfocado
+                            unfocusedBorderColor = Color.Gray    // Borde gris cuando no enfocado
+                        )
+                    )
+
+                    OutlinedTextField(
+                        value = posicion,
+                        onValueChange = { posicion = it },
+                        label = { Text("Posición") },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color.Black,
+                            unfocusedTextColor = Color.Black,
+                            focusedLabelColor = Color.Gray,
+                            unfocusedLabelColor = Color.Gray,
+                            focusedBorderColor = Color.Red,
+                            unfocusedBorderColor = Color.Gray
+                        )
+                    )
+
+                    OutlinedTextField(
+                        value = dorsal,
+                        onValueChange = { dorsal = it },
+                        label = { Text("Dorsal") },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color.Black,
+                            unfocusedTextColor = Color.Black,
+                            focusedLabelColor = Color.Gray,
+                            unfocusedLabelColor = Color.Gray,
+                            focusedBorderColor = Color.Red,
+                            unfocusedBorderColor = Color.Gray
+                        )
+                    )
+                }
+            },
+            confirmButton = {
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    Button(
+                        onClick = {
+                            viewModel.eliminarJugador(jugadorSeleccionado!!.id)
+                            viewModel.cargarJugadores()
+                            mostrarDialogo = false
+                            jugadorSeleccionado = null
+                        },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(0.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.Black)
+                    ) {
+                        Text("Eliminar", color = Color.White)
+                    }
+
+                    Button(
+                        onClick = {
+                            viewModel.actualizarJugador(
+                                jugadorSeleccionado!!.id,
+                                nombre,
+                                posicion,
+                                dorsal.toIntOrNull() ?: 0,
+                                jugadorSeleccionado!!.fechaNacimiento,
+                                jugadorSeleccionado!!.nacionalidad,
+                                jugadorSeleccionado!!.idEquipo
+                            )
+                            viewModel.cargarJugadores()
+                            mostrarDialogo = false
+                            jugadorSeleccionado = null
+                        },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(0.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
+                    ) {
+                        Text("Guardar", color = Color.White)
+                    }
+                }
+            },
+            dismissButton = {
+                Box(
+                    modifier = Modifier.fillMaxWidth(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    TextButton(onClick = {
+                        mostrarDialogo = false
+                        jugadorSeleccionado = null
+                    }) {
+                        Text("Cancelar")
+                    }
+                }
+            }
+        )
+    }
 }
 
-// 📌 CARD DE JUGADOR CON ESTADÍSTICAS
+// 🔥 UNA SOLA DEFINICIÓN DE ESTA FUNCIÓN
 @Composable
 fun JugadorCardConEstadisticas(
-    jugador: com.example.applicacion.model.Jugador,
+    jugador: Jugador,
     viewModel: JugadorViewModel,
     estadisticasAbiertas: Map<Long, List<com.example.applicacion.model.EstadisticaJugador>>
 ) {
     val estadisticasVisibles = estadisticasAbiertas.containsKey(jugador.id)
     val estadisticas = estadisticasAbiertas[jugador.id] ?: emptyList()
-    val errorEstadisticas = viewModel.errorEstadisticas  // ✅
+    val errorEstadisticas = viewModel.errorEstadisticas
 
     Card(
         shape = RoundedCornerShape(16.dp),
@@ -249,7 +389,6 @@ fun JugadorCardConEstadisticas(
         colors = CardDefaults.cardColors(containerColor = Color.White)
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
-
             Text(
                 text = jugador.nombre,
                 fontSize = 20.sp,
@@ -307,12 +446,11 @@ fun JugadorCardConEstadisticas(
                     containerColor = Color.Transparent,
                     contentColor = Color.Black
                 ),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Color.Black)
+                border = BorderStroke(1.dp, Color.Black)
             ) {
                 Text(if (estadisticasVisibles) "Ocultar estadísticas" else "Ver estadísticas")
             }
 
-            // ❌ ERROR DE ESTADÍSTICAS ✅
             errorEstadisticas?.let {
                 Text(
                     text = it,
@@ -322,7 +460,6 @@ fun JugadorCardConEstadisticas(
                 )
             }
 
-            // 📊 ESTADÍSTICAS DESPLEGABLES
             AnimatedVisibility(visible = estadisticasVisibles) {
                 Column(
                     modifier = Modifier
@@ -392,7 +529,7 @@ fun JugadorCardConEstadisticas(
     }
 }
 
-// 📌 CHIP DE ESTADÍSTICA
+// 🔥 UNA SOLA DEFINICIÓN DE ESTA FUNCIÓN
 @Composable
 fun StatChip(label: String, valor: String, color: Color = Color.Black) {
     Column(

@@ -1,3 +1,4 @@
+// EquipoViewModel.kt
 package com.example.applicacion.viewmodel
 
 import androidx.compose.runtime.getValue
@@ -28,6 +29,9 @@ class EquipoViewModel : ViewModel() {
     var error by mutableStateOf<String?>(null)
         private set
 
+    var mensaje by mutableStateOf<String?>(null)
+        private set
+
     init {
         cargarEquipos()
     }
@@ -36,16 +40,12 @@ class EquipoViewModel : ViewModel() {
         viewModelScope.launch {
             cargando = true
             error = null
-
             try {
-                // 🔥 1. cargar equipos primero
                 val equiposResponse = intentar { repository.getEquipos() }
                 equipos = equiposResponse
 
-                // 🔥 2. pequeño delay (evita saturar backend)
                 kotlinx.coroutines.delay(500)
 
-                // 🔥 3. cargar goles después
                 val golesResponse = intentar { repository.getGolesEquipo() }
                 golesEquipo = golesResponse
 
@@ -59,14 +59,65 @@ class EquipoViewModel : ViewModel() {
         }
     }
 
-    // 🔁 FUNCIÓN DE REINTENTO AUTOMÁTICO
+    fun crearEquipo(nombre: String, ciudad: String, fecha: String) {
+        viewModelScope.launch {
+            cargando = true
+            error = null
+            mensaje = null
+            try {
+                repository.crearEquipo(nombre, ciudad, fecha)
+                mensaje = "Equipo creado ✔"
+                cargarEquipos()
+            } catch (e: Exception) {
+                error = "Error al crear equipo: ${e.message}"
+            } finally {
+                cargando = false
+            }
+        }
+    }
+
+    // ✅ NUEVO - ACTUALIZAR
+    fun actualizarEquipo(id: Long, nombre: String, ciudad: String, fecha: String) {
+        viewModelScope.launch {
+            cargando = true
+            error = null
+            mensaje = null
+            try {
+                repository.actualizarEquipo(id, nombre, ciudad, fecha)
+                mensaje = "Equipo actualizado ✔"
+                cargarEquipos()
+            } catch (e: Exception) {
+                error = "Error al actualizar equipo: ${e.message}"
+            } finally {
+                cargando = false
+            }
+        }
+    }
+
+    // ✅ NUEVO - ELIMINAR
+    fun eliminarEquipo(id: Long) {
+        viewModelScope.launch {
+            cargando = true
+            error = null
+            try {
+                repository.eliminarEquipo(id)
+                mensaje = "Equipo eliminado ✔"
+                cargarEquipos()
+            } catch (e: Exception) {
+                error = "Error al eliminar equipo: ${e.message}"
+            } finally {
+                cargando = false
+            }
+        }
+    }
+
     private suspend fun <T> intentar(block: suspend () -> T): T {
         repeat(3) { intento ->
             try {
                 return block()
             } catch (e: Exception) {
                 if (intento == 2) throw e
-                kotlinx.coroutines.delay(1500) // 🔥 espera antes de reintentar
+                kotlinx.coroutines.delay(1500)
             }
         }
         throw Exception("Error inesperado")
