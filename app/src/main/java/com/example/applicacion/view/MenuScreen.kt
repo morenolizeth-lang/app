@@ -4,13 +4,22 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.GenericShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
@@ -21,6 +30,13 @@ import com.example.applicacion.R
 import androidx.compose.ui.res.painterResource
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
+import kotlinx.coroutines.delay
+import androidx.compose.foundation.Canvas
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.border
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.delay
 
 // =======================
 // SCREEN PRINCIPAL
@@ -34,44 +50,7 @@ fun MenuScreen(navController: NavController) {
             .padding(16.dp)
     ) {
 
-        // 🔥 HEADER
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(150.dp)
-                .background(
-                    brush = Brush.verticalGradient(
-                        colors = listOf(Color.Black, Color.Red)
-                    ),
-                    shape = RoundedCornerShape(16.dp)
-                )
-                .padding(16.dp),
-            contentAlignment = Alignment.Center
-        ) {
-
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-
-                Text(
-                    text = "Área administrativa",
-                    color = Color.White,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold
-                )
-
-                Spacer(modifier = Modifier.height(15.dp))
-
-                Text(
-                    text = "Accede a las opciones disponibles para consultar o modificar la información",
-                    color = Color.White,
-                    fontSize = 18.sp,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        }
+        HeaderPortada()
 
         Spacer(modifier = Modifier.height(30.dp))
 
@@ -168,5 +147,75 @@ fun MenuScreenPreview() {
         MenuScreen(
             navController = rememberNavController()
         )
+    }
+}
+
+@Composable
+fun HeaderPortada() {
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(180.dp)
+            .padding(8.dp)
+            .border(
+                width = 3.dp,
+                brush = Brush.linearGradient(
+                    colors = listOf(Color.Red, Color.Black)
+                ),
+                shape = RoundedCornerShape(20.dp)
+            )
+            .clip(RoundedCornerShape(20.dp))
+            .background(Color.White)
+    ) {
+
+        // 🖼️ IMAGEN
+        Image(
+            painter = painterResource(R.drawable.deporte),
+            contentDescription = "deporte",
+            contentScale = ContentScale.Crop,
+            modifier = Modifier
+                .fillMaxHeight()
+                .fillMaxWidth(0.6f)
+        )
+
+        // 🔺 TRIÁNGULO DERECHO
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .clip(
+                    GenericShape { size, _ ->
+                        moveTo(size.width * 0.4f, 0f)
+                        lineTo(size.width, 0f)
+                        lineTo(size.width, size.height)
+                        lineTo(size.width * 0.6f, size.height)
+                        close()
+                    }
+                )
+                .background(
+                    brush = Brush.linearGradient(
+                        colors = listOf(Color.Red, Color.Black)
+                    )
+                )
+        )
+
+        // 📝 TEXTO
+        Column(
+            modifier = Modifier
+                .align(Alignment.CenterEnd)
+                .padding(end = 16.dp)
+                .width(160.dp),
+            horizontalAlignment = Alignment.End
+        ) {
+
+            Text(
+                text = "\"Vive las eliminatorias minuto a minuto.\"",
+                color = Color.White,
+                fontWeight = FontWeight.Bold,
+                fontSize = 14.sp,
+                textAlign = TextAlign.End
+            )
+
+        }
     }
 }

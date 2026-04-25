@@ -5,5 +5,7 @@ data class Jugador(
     val posicion: String,
     val dorsal: Int,
     val fechaNacimiento: String,
-    val nacionalidad: String
+    val nacionalidad: String,
+    val idEquipo: Long,           // 👈 NUEVO
+    val nombreEquipo: String?     // 👈 NUEVO
 )

@@ -36,10 +36,14 @@ class JugadorViewModel : ViewModel() {
 
     var error: String? by mutableStateOf(null)
         private set
-    // ✅ agregar junto a los otros estados
+
     var errorEstadisticas: String? by mutableStateOf(null)
         private set
+
+    // ⚠️ Se mantiene pero ya no es necesario realmente
     private var jugadorNombreEquipoMap: Map<Long, String> = emptyMap()
+
+    // ⚠️ Se mantiene pero ya no dependes de esto para mostrar equipo
     private var equiposCargados: List<Equipo> = emptyList()
     private var partidosCargados: List<Partido> = emptyList()
 
@@ -53,17 +57,15 @@ class JugadorViewModel : ViewModel() {
     private fun cargarDatos() {
         viewModelScope.launch {
             cargando = true
-            error = null
             try {
-                jugadores = jugadorRepository.getJugadores()
-                equiposCargados = equipoRepository.getEquipos()
-                partidosCargados = partidoRepository.getPartidos()
+                val jugadoresResponse = jugadorRepository.getJugadores()
+                val equiposResponse = equipoRepository.getEquipos()
+                val partidosResponse = partidoRepository.getPartidos()
 
-                jugadorNombreEquipoMap = equiposCargados
-                    .flatMap { equipo ->
-                        equipo.jugadores.map { jugador -> jugador.id to equipo.nombre }
-                    }
-                    .toMap()
+                jugadores = jugadoresResponse
+                equiposCargados = equiposResponse
+                partidosCargados = partidosResponse
+
             } catch (e: Exception) {
                 error = "Error al cargar datos: ${e.message}"
             } finally {
@@ -110,6 +112,7 @@ class JugadorViewModel : ViewModel() {
             }
         }
     }
+
     fun cargarJugadoresPorEquipo(idEquipo: Long) {
         viewModelScope.launch {
             cargando = true
@@ -129,16 +132,31 @@ class JugadorViewModel : ViewModel() {
             }
         }
     }
+
     fun onGolesChange(valor: String) { golesBusqueda = valor }
 
-    // ✅ ahora usa corrutina
+    var buscando by mutableStateOf(false)
+        private set
+
     fun buscarJugadoresPorGoles() {
         val golesMinimos = golesBusqueda.toIntOrNull() ?: return
+
+        if (buscando) return
+
+        buscando = true
+        error = null
+
         viewModelScope.launch {
             try {
-                val todasStats = jugadores.flatMap { jugador ->
-                    estadisticaRepository.getEstadisticasPorJugador(jugador.id)
+                val todasStats = mutableListOf<EstadisticaJugador>()
+
+                for (jugador in jugadores) {
+                    try {
+                        val stats = estadisticaRepository.getEstadisticasPorJugador(jugador.id)
+                        todasStats.addAll(stats)
+                    } catch (_: Exception) { }
                 }
+
                 val golesPorJugador = todasStats
                     .groupBy { it.idJugador }
                     .mapValues { (_, stats) -> stats.sumOf { it.goles } }
@@ -146,9 +164,18 @@ class JugadorViewModel : ViewModel() {
                 jugadoresFiltrados = jugadores.filter { jugador ->
                     (golesPorJugador[jugador.id] ?: 0) >= golesMinimos
                 }
+
                 busquedaActiva = true
+
+                if (jugadoresFiltrados.isEmpty()) {
+                    error = null
+                }
+
             } catch (e: Exception) {
-                error = "Error al buscar: ${e.message}"
+                jugadoresFiltrados = emptyList()
+                busquedaActiva = true
+            } finally {
+                buscando = false
             }
         }
     }
@@ -159,8 +186,9 @@ class JugadorViewModel : ViewModel() {
         busquedaActiva = false
     }
 
-    fun getNombreEquipo(idJugador: Long): String {
-        return jugadorNombreEquipoMap[idJugador] ?: "Desconocido"
+    // 🔥 MEJORA REAL AQUÍ
+    fun getNombreEquipo(jugador: Jugador): String {
+        return jugador.nombreEquipo ?: "Sin equipo"
     }
 
     fun getNombrePartido(idPartido: Long): String {
@@ -170,21 +198,19 @@ class JugadorViewModel : ViewModel() {
         } else "Partido desconocido"
     }
 
-    // ✅ ahora usa corrutina
     fun toggleEstadisticas(idJugador: Long) {
         if (estadisticasAbiertas.containsKey(idJugador)) {
             estadisticasAbiertas = estadisticasAbiertas - idJugador
         } else {
             viewModelScope.launch {
                 try {
-                    errorEstadisticas = null  // ✅ limpiar error anterior
+                    errorEstadisticas = null
                     val stats = estadisticaRepository.getEstadisticasPorJugador(idJugador)
                     estadisticasAbiertas = estadisticasAbiertas + (idJugador to stats)
                 } catch (e: Exception) {
-                    errorEstadisticas = "Error al cargar estadísticas: ${e.message}"  // ✅
+                    errorEstadisticas = "Error al cargar estadísticas: ${e.message}"
                 }
             }
         }
     }
-
 }

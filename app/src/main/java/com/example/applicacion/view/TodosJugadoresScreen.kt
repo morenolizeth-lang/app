@@ -290,7 +290,7 @@ fun JugadorCardConEstadisticas(
                 ) {
                     Text("Equipo", fontSize = 12.sp, color = Color.Gray)
                     Text(
-                        text = viewModel.getNombreEquipo(jugador.id),
+                        text = viewModel.getNombreEquipo(jugador),
                         fontWeight = FontWeight.Bold,
                         fontSize = 16.sp,
                         color = Color.Black

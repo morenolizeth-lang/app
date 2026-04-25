@@ -7,11 +7,11 @@ import retrofit2.converter.gson.GsonConverterFactory
 
 object RetrofitClient {
 
-    private const val BASE_URL = "http://192.168.20.36:8080/"
+    private const val BASE_URL = "https://aplicac-n-futboll-estadisticas.onrender.com/"
 
     val api: ApiService by lazy {
         val gson = GsonBuilder()
-            .setDateFormat("yyyy-MM-dd")  // ✅ evita que Gson interprete fechas como objetos
+            .setDateFormat("yyyy-MM-dd")
             .create()
 
         Retrofit.Builder()

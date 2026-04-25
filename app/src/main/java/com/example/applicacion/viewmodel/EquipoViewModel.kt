@@ -36,18 +36,39 @@ class EquipoViewModel : ViewModel() {
         viewModelScope.launch {
             cargando = true
             error = null
+
             try {
-                equipos = repository.getEquipos()
-                golesEquipo = repository.getGolesEquipo()
+                // 🔥 1. cargar equipos primero
+                val equiposResponse = intentar { repository.getEquipos() }
+                equipos = equiposResponse
+
+                // 🔥 2. pequeño delay (evita saturar backend)
+                kotlinx.coroutines.delay(500)
+
+                // 🔥 3. cargar goles después
+                val golesResponse = intentar { repository.getGolesEquipo() }
+                golesEquipo = golesResponse
+
             } catch (e: Exception) {
-                error = e.message
+                equipos = emptyList()
+                golesEquipo = emptyMap()
+                error = "No se pudo cargar la información. Intenta nuevamente."
             } finally {
                 cargando = false
             }
         }
     }
 
-    fun seleccionarYAbrirJugadores(equipo: Equipo) {
-        equipoSeleccionado = equipo
+    // 🔁 FUNCIÓN DE REINTENTO AUTOMÁTICO
+    private suspend fun <T> intentar(block: suspend () -> T): T {
+        repeat(3) { intento ->
+            try {
+                return block()
+            } catch (e: Exception) {
+                if (intento == 2) throw e
+                kotlinx.coroutines.delay(1500) // 🔥 espera antes de reintentar
+            }
+        }
+        throw Exception("Error inesperado")
     }
 }
